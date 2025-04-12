@@ -8,8 +8,45 @@ from langchain.memory import ConversationBufferMemory
 from langchain_core.messages import HumanMessage, AIMessage
 import os
 from collections import defaultdict
+from langchain import hub
+
+
+from tavily import TavilyClient
+
+# Get API key from environment variable
+# tavily_api_key = os.environ.get("TAVILY_API_KEY")
+tavily_api_key = "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"
+from langchain_community.tools.tavily_search import TavilySearchResults
+
+
+# Check if the API key exists
+if not tavily_api_key:
+    raise ValueError("TAVILY_API_KEY environment variable is not set")
+
+tavily_client = TavilyClient(api_key=tavily_api_key)
+
+tavily_search_tool = TavilySearchResults()
+
+agent_tools = [tavily_search_tool]
 
 router = APIRouter()
+
+from langchain_openai import ChatOpenAI
+
+MODEL = "gpt-4o-mini"
+llm = ChatOpenAI(model=MODEL, temperature=0)
+
+# Get the prompt to use - you can modify this!
+prompt = hub.pull("hwchase17/openai-tools-agent")
+
+from langchain.agents import create_tool_calling_agent
+
+agent = create_tool_calling_agent(llm, agent_tools, prompt)
+
+from langchain.agents import AgentExecutor
+
+agent_executor = AgentExecutor(agent=agent, tools=agent_tools, verbose=True)
+
 
 # Store conversations in memory (in production, use a database)
 conversations = defaultdict(lambda: ConversationBufferMemory(
@@ -20,7 +57,7 @@ conversations = defaultdict(lambda: ConversationBufferMemory(
 # Initialize the LLM
 llm = ChatOpenAI(
     openai_api_key=os.getenv("OPENAI_API_KEY"),
-    model_name="gpt-3.5-turbo",
+    model_name=MODEL,
     temperature=0.7,
 )
 
@@ -42,7 +79,7 @@ class ChatResponse(BaseModel):
 @router.post("/api/openapichat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
-    Endpoint for LangChain-based chat using OpenAI with conversation memory.
+    Endpoint for LangChain-based chat using OpenAI with conversation memory and agent tools.
     """
     try:
         if not request.message:
@@ -52,25 +89,20 @@ async def chat_endpoint(request: ChatRequest):
         session_id = request.session_id or "default"
         memory = conversations[session_id]
 
-        # Create the chain with memory
-        chain = LLMChain(
-            llm=llm,
-            prompt=chat_prompt,
-            memory=memory,
-            verbose=True
-        )
-
-        # Process the message using the chain
-        response = await chain.ainvoke({"input": request.message})
+        # Process the message using the agent executor
+        response = await agent_executor.ainvoke({
+            "input": request.message,
+            "chat_history": memory.chat_memory.messages
+        })
         
         # Save the conversation to memory
         memory.save_context(
             {"input": request.message},
-            {"output": response["text"]}
+            {"output": response["output"]}
         )
         
         return ChatResponse(
-            response=response["text"],
+            response=response["output"],
             session_id=session_id
         )
     except Exception as e:

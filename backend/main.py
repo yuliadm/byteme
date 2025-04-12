@@ -395,12 +395,14 @@ app.add_middleware(
 # --- API Request/Response Models (using Pydantic) ---
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
     # Optional: Pass chat history from client if managing state there
     # chat_history: Optional[List[Tuple[str, str]]] = None # Example: [("user", "hi"), ("assistant", "hello")]
 
 
 class ChatResponse(BaseModel):
     response: str
+    session_id: Optional[str] = None
     # Optional: Return updated history if needed
     # chat_history: Optional[List[Tuple[str, str]]] = None
 
@@ -420,6 +422,7 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     print(f"Received message: {request.message}")
+    session_id = request.session_id or "default"
 
     # Convert chat history format if needed (example assumes simple list of tuples)
     # llama_index_history = []
@@ -446,7 +449,7 @@ async def chat_endpoint(request: ChatRequest):
             )
 
         print(f"Sending response: {response.response}")
-        return ChatResponse(response=response.response)
+        return ChatResponse(response=response.response, session_id=session_id)
 
     except Exception as e:
         logging.exception("Error processing chat request:")  # Log the full traceback

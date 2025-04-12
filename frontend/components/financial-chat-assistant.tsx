@@ -60,13 +60,6 @@ export function FinancialChatAssistant() {
   const handleSend = async () => {
     if (!input.trim() && !selectedFile) return
 
-    // Create form data if there's a file
-    const formData = new FormData()
-    if (selectedFile) {
-      formData.append('file', selectedFile)
-    }
-    formData.append('message', input)
-
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -85,10 +78,16 @@ export function FinancialChatAssistant() {
     setIsLoading(true)
 
     try {
-      // Call the FastAPI backend with file support
+      // Call the FastAPI backend with JSON data
       const response = await fetch("http://127.0.0.1:8000/api/chat", {
         method: "POST",
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: input,
+          session_id: localStorage.getItem('chatSessionId') || Date.now().toString()
+        }),
       })
 
       if (!response.ok) {

@@ -43,7 +43,22 @@ export function ChatInterface({ onUpdateListings }: ChatInterfaceProps) {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showImageUpload, setShowImageUpload] = useState(false)
+  const [sessionId, setSessionId] = useState<string>("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Initialize session ID on client-side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedId = localStorage.getItem('chatSessionId')
+      if (storedId) {
+        setSessionId(storedId)
+      } else {
+        const newId = Date.now().toString()
+        localStorage.setItem('chatSessionId', newId)
+        setSessionId(newId)
+      }
+    }
+  }, [])
 
   // Sample property preferences for demonstration
   const samplePreferences = [
@@ -76,13 +91,16 @@ export function ChatInterface({ onUpdateListings }: ChatInterfaceProps) {
     setIsLoading(true)
 
     try {
-      // Call the new LangChain endpoint
+      // Call the new LangChain endpoint with session ID
       const response = await fetch('http://localhost:8000/api/openapichat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ 
+          message: input,
+          session_id: sessionId 
+        }),
       })
 
       if (!response.ok) {

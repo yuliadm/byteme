@@ -38,6 +38,9 @@ from llama_index.core import (
 from llama_index.core.chat_engine import CondenseQuestionChatEngine
 from llama_index.llms.openai import OpenAI  # Or your preferred LLM
 
+# Import our new LangChain chat router
+from langchain_chat import router as langchain_router
+
 # --- Basic Setup & Configuration ---
 # Load environment variables from .env file (especially OPENAI_API_KEY)
 load_dotenv()
@@ -366,6 +369,9 @@ app = FastAPI(
     description="API to chat with a document using LlamaIndex and FastAPI.",
     version="1.0.0",
 )
+
+# Include the LangChain chat router
+app.include_router(langchain_router)
 
 # CORS Middleware: Allows requests from your Next.js frontend (and other origins)
 # IMPORTANT: Adjust origins for production deployment

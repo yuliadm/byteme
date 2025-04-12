@@ -60,7 +60,7 @@ export function ChatInterface({ onUpdateListings }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return
 
     // Add user message
@@ -75,22 +75,49 @@ export function ChatInterface({ onUpdateListings }: ChatInterfaceProps) {
     setInput("")
     setIsLoading(true)
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Call the new LangChain endpoint
+      const response = await fetch('http://localhost:8000/api/openapichat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: input }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from AI')
+      }
+
+      const data = await response.json()
+
+      // Add AI response to chat
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: getAssistantResponse(input),
+        content: data.response,
         role: "assistant",
         timestamp: new Date(),
       }
-      setMessages((prev) => [...prev, assistantMessage])
-      setIsLoading(false)
 
-      // Update listings based on text query
+      setMessages((prev) => [...prev, assistantMessage])
+
+      // Update listings based on text query if the callback exists
       if (onUpdateListings) {
         onUpdateListings(getMatchingProperties(input), "text")
       }
-    }, 1000)
+    } catch (error) {
+      console.error('Error:', error)
+      // Add error message to chat
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Sorry, I encountered an error. Please try again.",
+        role: "assistant",
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const getAssistantResponse = (userInput: string): string => {

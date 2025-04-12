@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Send, Calculator, MessageSquare } from "lucide-react"
+import { Send, Calculator, MessageSquare, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Message = {
@@ -15,6 +15,10 @@ type Message = {
   content: string
   role: "user" | "assistant"
   timestamp: Date
+  attachment?: {
+    name: string
+    url: string
+  }
 }
 
 export function FinancialChatAssistant() {
@@ -29,8 +33,9 @@ export function FinancialChatAssistant() {
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
 
   useEffect(() => {
     scrollToBottom()
@@ -40,9 +45,27 @@ export function FinancialChatAssistant() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  // Replace the handleSend function with this implementation that connects to the FastAPI backend
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+      setInput(`Uploaded document: ${file.name}`)
+    }
+  }
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
   const handleSend = async () => {
-    if (!input.trim()) return
+    if (!input.trim() && !selectedFile) return
+
+    // Create form data if there's a file
+    const formData = new FormData()
+    if (selectedFile) {
+      formData.append('file', selectedFile)
+    }
+    formData.append('message', input)
 
     // Add user message
     const userMessage: Message = {
@@ -50,20 +73,22 @@ export function FinancialChatAssistant() {
       content: input,
       role: "user",
       timestamp: new Date(),
+      attachment: selectedFile ? {
+        name: selectedFile.name,
+        url: URL.createObjectURL(selectedFile)
+      } : undefined
     }
 
     setMessages((prev) => [...prev, userMessage])
     setInput("")
+    setSelectedFile(null)
     setIsLoading(true)
 
     try {
-      // Call the FastAPI backend
+      // Call the FastAPI backend with file support
       const response = await fetch("http://127.0.0.1:8000/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: input }),
+        body: formData,
       })
 
       if (!response.ok) {
@@ -72,7 +97,6 @@ export function FinancialChatAssistant() {
 
       const data = await response.json()
 
-      // Add assistant message with the response from the API
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: data.response,
@@ -84,7 +108,6 @@ export function FinancialChatAssistant() {
     } catch (error) {
       console.error("Error calling chat API:", error)
 
-      // Add error message
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "Sorry, I'm having trouble connecting to the server. Please try again later.",
@@ -97,12 +120,6 @@ export function FinancialChatAssistant() {
       setIsLoading(false)
     }
   }
-
-  // Remove the getAssistantResponse function as we're now getting responses from the API
-  // Delete this function:
-  // const getAssistantResponse = (userInput: string): string => {
-  //   ...
-  // }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -150,7 +167,14 @@ export function FinancialChatAssistant() {
                   message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
                 )}
               >
-                <div className="space-y-3">{message.content}</div>
+                <div className="space-y-3">
+                  {message.content}
+                  {message.attachment && (
+                    <div className="mt-2 text-xs">
+                      📎 {message.attachment.name}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -172,11 +196,25 @@ export function FinancialChatAssistant() {
           )}
           <div ref={messagesEndRef} />
         </div>
-
-         
       </CardContent>
       <CardFooter className="pt-4">
         <div className="flex w-full items-center gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            className="hidden"
+            accept=".pdf,.doc,.docx,.txt"
+          />
+          <Button
+            size="icon"
+            variant="outline"
+            className="shrink-0"
+            onClick={handleUploadClick}
+          >
+            <Upload className="h-4 w-4" />
+            <span className="sr-only">Upload file</span>
+          </Button>
           <Input
             placeholder="Ask about your financial options..."
             value={input}
@@ -188,7 +226,7 @@ export function FinancialChatAssistant() {
             size="icon"
             className="shrink-0 bg-black hover:bg-white hover:text-black hover:border hover:border-black text-white rounded-none transition-colors"
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() && !selectedFile || isLoading}
           >
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>

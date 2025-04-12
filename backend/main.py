@@ -371,6 +371,10 @@ app = FastAPI(
 # IMPORTANT: Adjust origins for production deployment
 origins = [
     "http://localhost:3000",  # Allow Next.js dev server
+    "https://v0.dev",
+    "https://vusercontent.net",  # Allow vercel v0.dev domain
+    "https://v0.dev/chat/fork-of-raiffeisen-real-estate-8FgA0F6SBS0",
+    "https://kzsmlp7lalhelly7stmwv.usercontent.net",  # Allow specific chat path
     # "https://your-deployed-frontend.com", # Add your production frontend URL
 ]
 app.add_middleware(

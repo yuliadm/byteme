@@ -26,7 +26,7 @@ export function FinancialChatAssistant() {
     {
       id: "1",
       content:
-        "Hello! I'm your Raiffeisen Financial Assistant. I can help you understand your mortgage options and financial situation. What would you like to know?",
+        "Hello! I'm your Financial Assistant. I can help you with investments, budgeting, financial planning, and provide information about markets and financial concepts. What would you like to know?",
       role: "assistant",
       timestamp: new Date(),
     },
@@ -36,10 +36,19 @@ export function FinancialChatAssistant() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [sessionId, setSessionId] = useState<string>(() => {
+    // Initialize session ID from localStorage or generate a new one
+    return localStorage.getItem('financeChatSessionId') || Date.now().toString()
+  })
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    // Save session ID to localStorage whenever it changes
+    localStorage.setItem('financeChatSessionId', sessionId)
+  }, [sessionId])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -79,14 +88,14 @@ export function FinancialChatAssistant() {
 
     try {
       // Call the FastAPI backend with JSON data
-      const response = await fetch("http://127.0.0.1:8000/api/chat", {
+      const response = await fetch("http://127.0.0.1:8000/api/financeagent", {
         method: "POST",
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           message: input,
-          session_id: localStorage.getItem('chatSessionId') || Date.now().toString()
+          session_id: sessionId
         }),
       })
 
@@ -95,6 +104,11 @@ export function FinancialChatAssistant() {
       }
 
       const data = await response.json()
+
+      // Update session ID if a new one was provided
+      if (data.session_id && data.session_id !== sessionId) {
+        setSessionId(data.session_id)
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -105,7 +119,7 @@ export function FinancialChatAssistant() {
 
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
-      console.error("Error calling chat API:", error)
+      console.error("Error calling finance agent API:", error)
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),

@@ -40,6 +40,8 @@ from llama_index.llms.openai import OpenAI  # Or your preferred LLM
 
 # Import our new LangChain chat router
 from langchain_chat import router as langchain_router
+# Import our new Finance Agent router
+from finance_agent import router as finance_router
 
 # --- Basic Setup & Configuration ---
 # Load environment variables from .env file (especially OPENAI_API_KEY)
@@ -372,6 +374,7 @@ app = FastAPI(
 
 # Include the LangChain chat router
 app.include_router(langchain_router)
+app.include_router(finance_router)
 
 # CORS Middleware: Allows requests from your Next.js frontend (and other origins)
 # IMPORTANT: Adjust origins for production deployment

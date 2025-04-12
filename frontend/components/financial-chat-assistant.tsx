@@ -9,6 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Send, Calculator, MessageSquare, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
+import ReactMarkdown from 'react-markdown'
 
 type Message = {
   id: string
@@ -177,11 +178,15 @@ export function FinancialChatAssistant() {
               <div
                 className={cn(
                   "rounded-lg px-3 py-2 max-w-[80%]",
-                  message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
+                  message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted prose dark:prose-invert",
                 )}
               >
                 <div className="space-y-3">
-                  {message.content}
+                  {message.role === "assistant" ? (
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  ) : (
+                    message.content
+                  )}
                   {message.attachment && (
                     <div className="mt-2 text-xs">
                       📎 {message.attachment.name}

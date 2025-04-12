@@ -26,7 +26,7 @@ export function FinancialChatAssistant() {
     {
       id: "1",
       content:
-        "Hello! I'm your Financial Assistant. I can help you with investments, budgeting, financial planning, and provide information about markets and financial concepts. What would you like to know?",
+        "Hello! I'm your Financial Assistant. To help you with mortgage possibilities, I need a couple of details about your financial situation. First, could you please share your approximate annual household income?",
       role: "assistant",
       timestamp: new Date(),
     },

@@ -31,12 +31,6 @@ export function FinancialChatAssistant() {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Sample financial questions for demonstration
-  const sampleQuestions = [
-    "What mortgage rate can I expect?",
-    "How much down payment do I need?",
-    "What's the maximum property value I can afford?",
-  ]
 
   useEffect(() => {
     scrollToBottom()
@@ -179,22 +173,7 @@ export function FinancialChatAssistant() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="mt-4">
-          <p className="text-xs text-muted-foreground mb-2">Try asking about:</p>
-          <div className="flex flex-wrap gap-2">
-            {sampleQuestions.map((sample, index) => (
-              <Button
-                key={index}
-                variant="outline"
-                size="sm"
-                className="text-xs h-auto py-1 px-2"
-                onClick={() => handleSampleClick(sample)}
-              >
-                {sample}
-              </Button>
-            ))}
-          </div>
-        </div>
+         
       </CardContent>
       <CardFooter className="pt-4">
         <div className="flex w-full items-center gap-2">

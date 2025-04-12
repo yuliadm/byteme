@@ -1,0 +1,11 @@
+fastapi>=0.95.0
+uvicorn>=0.22.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+asyncio>=3.4.3
+crewai>=0.28.0
+llama-index>=0.9.0
+llama-index-llms-openai>=0.1.0
+openai>=1.3.0
+langchain>=0.0.267
+langtrace-python-sdk>=0.1.0

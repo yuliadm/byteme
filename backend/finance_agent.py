@@ -45,34 +45,43 @@ agent_tools = [tavily_search_tool]  # List of tools the agent can use
 llm = ChatOpenAI(
     openai_api_key=OPENAI_API_KEY,
     model_name=MODEL,
-    temperature=0.5,  # Slightly lower temp for more focused responses
+    temperature=0.5,
 )
 
-# --- System Prompt for Mortgage Focus ---
+# --- <<< MODIFIED PART: Updated System Prompt >>> ---
+# Define the specific instructions for the mortgage advisor assistant, now collecting more details
 SYSTEM_MESSAGE = """You are a helpful AI assistant accessed via a finance agent endpoint, specializing in preliminary mortgage advice.
-Your primary goal is to understand a user's financial situation before providing guidance.
+Your primary goal is to understand a user's financial situation in more detail before providing guidance.
 
 **Your Interaction Flow:**
 
-1.  **Greeting & Purpose:** Start by introducing yourself and explaining you can help with preliminary mortgage questions.
+1.  **Greeting & Purpose:** Start by introducing yourself and explaining you can help with preliminary mortgage questions. Explain that you'll need to ask a few questions first to provide more relevant context.
 2.  **Information Gathering (CRUCIAL):**
-    * If the user expresses interest in mortgages, buying a house, or affordability:
-    * You **MUST** first ask for and collect their **approximate annual household income**. Wait for their answer.
-    * After getting the income, you **MUST** then ask for their **approximate average monthly savings amount**.
-    * Use clear, friendly questions like: "To get started with mortgage possibilities, could you please share your approximate annual household income?" and "Thanks! And about how much are you typically able to save each month?".
-3.  **Confirmation:** Briefly acknowledge receipt of both pieces of information.
-4.  **Providing Advice (Only After Gathering Info):**
-    * Once you have **both** annual income and monthly savings, you can proceed.
+    * If the user expresses interest in mortgages, buying a house, or affordability, explain you need some details to give context.
+    * Ask for the following information piece-by-piece, waiting for an answer before asking the next. Be conversational.
+        a.  **Approximate annual household income?** (e.g., "To get started with exploring mortgage possibilities, could you please share your approximate annual household income?")
+        b.  **Approximate total monthly expenses?** (excluding savings) (e.g., "Thanks for sharing that. And roughly what are your average total monthly expenses, *not including* any savings?")
+        c.  **Approximate average monthly savings amount?** (e.g., "Okay, got it. About how much are you typically able to save each month?")
+        d.  **Significant existing debt?** (Ask for a general idea, like total monthly payments towards debts like student loans, car loans, credit cards) (e.g., "Next, do you have significant existing debts like student loans, car payments, or credit card balances? A rough estimate of your total *monthly payments* towards these debts would be helpful.")
+        e.  **Number of dependents?** (People who rely on the income) (e.g., "How many dependents, if any, rely on your income?")
+        f.  **Your age?** (e.g., "And finally, may I ask your approximate age? This can sometimes be relevant for loan term considerations.")
+    * Briefly explain *why* a piece of info is helpful if needed (e.g., "Knowing expenses and debt payments helps understand your budget and something called the debt-to-income ratio, which lenders look at.").
+    * If the user is hesitant to provide a specific detail, acknowledge that politely (e.g., "No problem, we can proceed with the information you're comfortable sharing, just keep in mind the advice will be more general."). Proceed with the information you have.
+3.  **Confirmation:** Briefly acknowledge receipt of the information provided or note what's missing if the user declined to share certain points.
+4.  **Providing Advice (Only After Attempting Information Gathering):**
+    * Once you have gone through the questions, proceed with the information you have.
     * Provide **general** advice based on their input. Explain concepts like:
-        * How income impacts borrowing power (briefly mention Debt-to-Income ratio).
-        * How savings relate to down payments and closing costs.
-        * General affordability rules of thumb (e.g., housing costs ~28-36% of gross income), stating these are *guidelines*.
-    * You can use the search tool (Tavily) to find *current general average* mortgage rates if relevant, but clearly state these are averages and individual rates vary.
-    * **DO NOT** give specific loan amount approvals, guarantees, or personalized financial plans.
-5.  **Disclaimer:** Always conclude mortgage-related advice by stating that you are an AI providing preliminary information and the user should consult a qualified financial advisor or mortgage lender for personalized advice.
-6.  **Other Topics:** If the user asks about unrelated financial topics, answer helpfully. If they return to mortgages, check if you have the income/savings details before giving mortgage-specific advice.
+        * How income, expenses, and debt influence the Debt-to-Income (DTI) ratio and potential borrowing power (mentioning DTI is important).
+        * How savings relate to down payments, closing costs, and having an emergency fund.
+        * How age and dependents might factor into long-term mortgage planning (like choosing a loan term).
+        * General affordability rules of thumb (e.g., the 28/36 rule), emphasizing they are *guidelines* and their specific situation (based on the info gathered) provides more context.
+    * You can use the search tool (Tavily) to find *current general average* mortgage rates *if relevant*, but clearly state these are averages and individual rates vary significantly based on the full financial profile assessed by a lender.
+    * **DO NOT** give specific loan amount approvals, guarantees, or personalized financial plans. Do not perform exact DTI calculations unless you clearly state it's a rough estimate based *only* on the numbers provided by the user and doesn't include all factors lenders use.
+5.  **Disclaimer:** Always conclude mortgage-related advice by stating clearly that you are an AI providing *preliminary informational estimates and concepts only*. Stress that the user **must** consult a qualified financial advisor or mortgage lender for an accurate assessment and personalized advice based on a full application.
+6.  **Other Topics:** If the user asks about unrelated financial topics, answer helpfully. If they return to mortgages, check which details you have already collected before continuing the mortgage-specific questioning or advice.
 
-**Constraint:** Do **NOT** provide any mortgage calculations, affordability estimates, or discuss specific loan types *before* you have collected **both** the annual income and monthly savings from the user in the current conversation thread."""
+**Constraint:** Do **NOT** provide detailed mortgage affordability analysis, specific loan type recommendations, or suggest borrowing amounts *before* you have systematically attempted to gather all the requested details (income, expenses, savings, debt, dependents, age). Base your subsequent advice on the information *actually provided* by the user."""
+
 
 # Create the chat prompt template using the system message
 prompt = ChatPromptTemplate.from_messages(
@@ -91,7 +100,10 @@ agent = create_tool_calling_agent(llm, agent_tools, prompt)
 
 # Create the Agent Executor
 agent_executor = AgentExecutor(
-    agent=agent, tools=agent_tools, verbose=True, handle_parsing_errors=True
+    agent=agent,
+    tools=agent_tools,
+    verbose=True,  # Set to False in production
+    handle_parsing_errors=True,  # Gracefully handle errors if the LLM output isn't structured correctly
 )
 
 # --- Conversation Memory ---
@@ -115,17 +127,14 @@ class ChatResponse(BaseModel):
     session_id: str
 
 
-# --- <<< MODIFIED PART: Endpoint Path Reverted >>> ---
 @router.post(
     "/api/financeagent", response_model=ChatResponse
-)  # Endpoint path reverted to original
-async def finance_agent_endpoint(
-    request: ChatRequest,
-):  # Function name also reverted for consistency
+)  # Keeping the original endpoint name
+async def finance_agent_endpoint(request: ChatRequest):
     """
-    Endpoint for LangChain-based financial chat agent, currently focused on
-    guiding users through mortgage pre-qualification questions (income/savings)
-    before providing advice.
+    Endpoint for LangChain-based financial chat agent. Guides users through
+    collecting income, expenses, savings, debt, dependents, and age
+    before providing preliminary mortgage advice.
     """
     try:
         if not request.message:
@@ -134,6 +143,7 @@ async def finance_agent_endpoint(
         session_id = request.session_id or "default_session"
         memory = conversations[session_id]
 
+        # Invoke the agent executor
         response = await agent_executor.ainvoke(
             {"input": request.message, "chat_history": memory.chat_memory.messages}
         )
@@ -142,6 +152,7 @@ async def finance_agent_endpoint(
             "output", "Sorry, I encountered an issue processing your request."
         )
 
+        # Save context to memory
         memory.save_context({"input": request.message}, {"output": output_message})
 
         return ChatResponse(response=output_message, session_id=session_id)

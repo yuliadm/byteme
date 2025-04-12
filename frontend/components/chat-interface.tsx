@@ -13,6 +13,7 @@ import { ImageAnalyzer } from "./image-analyzer"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import { mockProperties } from "@/lib/mock-properties"
+import ReactMarkdown from 'react-markdown'
 
 type Message = {
   id: string
@@ -261,11 +262,15 @@ export function ChatInterface({ onUpdateListings }: ChatInterfaceProps) {
                 <div
                   className={cn(
                     "rounded-lg px-3 py-2 max-w-[80%]",
-                    message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
+                    message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted prose dark:prose-invert",
                   )}
                 >
                   <div className="space-y-3">
-                    {message.content}
+                    {message.role === "assistant" ? (
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    ) : (
+                      message.content
+                    )}
 
                     {message.imageUrl && (
                       <div className="mt-2 relative aspect-video w-full overflow-hidden rounded-md">

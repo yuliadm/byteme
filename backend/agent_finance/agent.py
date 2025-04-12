@@ -3,6 +3,7 @@ from langgraph.graph import MessagesState
 from langchain.callbacks.tracers import ConsoleCallbackHandler
 from langchain_core.tools import tool
 from dataclasses import dataclass, is_dataclass, asdict
+from copy import deepcopy
 #data definition
 import random
 import typing
@@ -31,30 +32,25 @@ from langgraph.graph.message import add_messages
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage
 
-
-
 TragbarkeitsZins = 1.06
 RISK_FREE_RETURN = 1.05
-
-
-
-
 
 @dataclass
 class investment_type:
     name : str
-    ror: float
+    rate_of_return: float
     volatility: float
+    charged_against_assets : bool = False
 
 #basically asking the bot to invent/remember portfolio theory :)
 @dataclass
 class investment:
     kind : investment_type
     start : datetime
-    additional_monthly_input : int
+    additional_monthly_input : float
     #payout_days : int | None #30 or 360 probs
-    backed_by: Self | None = None
-    value: int = 0
+    #backed_by: Self | None = None #for reasons this completely confused serialization
+    value: float = 0
 
 
 @dataclass
@@ -64,11 +60,11 @@ class client_finance:
     other_investments : list[investment]
     saving_rate : float
     debt : investment
-    salary_yearly : int
-    salary_bonus_yearly : int
-    savings : int
-    years_till_retirement : int
-    fixed_expenses : int
+    salary_yearly : float
+    salary_bonus_yearly : float
+    savings : float
+    years_till_retirement : float
+    fixed_expenses : float
     risk_tolerance : float
 
 
@@ -90,25 +86,26 @@ class prediction_result:
 example_investment = investment(
     kind=investment_type(
         name="Raiffeisen Aktien 1",
-        ror=0.08,
+        rate_of_return=0.08,
         volatility=0.3,
     ),
     start=datetime(2024, 1, 1),
     additional_monthly_input=1000,
 )
 
+
 example_debt = investment(
     kind=investment_type(
-        name="Schulden",
-        ror= -0.50,
-        volatility=.8,
+        name="Schuld",
+        rate_of_return=0.08,
+        volatility=0.3,
+        charged_against_assets=True
     ),
     start=datetime(2024, 1, 1),
-    additional_monthly_input=0,
-    value = -3000000
+    additional_monthly_input=1000,
 )
 
-#yes ewwww
+#yes ewwwww
 global_client_finance = client_finance(
     third_pillar=None,
     second_pillar=example_investment,
@@ -157,18 +154,25 @@ def financial_instruments_fn() -> list[investment_type]:
     return [
         investment_type(
             name="Raiffeisen Aktien 1",
-            ror=0.08,
+            rate_of_return=0.08,
             volatility=0.3,
         ),
         investment_type(
             name="Raiffeisen Aktien 2",
-            ror=0.09,
+            rate_of_return=0.09,
             volatility=0.4,
         ),
         investment_type(
             name="Raiffeisen Third Pillar",
-            ror=0.02,
+            rate_of_return=0.02,
             volatility=0.1,
+        ),
+        # HABEN/SOLL field hinzufügen zum unterscheiden?
+        investment_type(
+            name="Raiffeisen Hypothek",
+            rate_of_return=0.05,
+            volatility=0.1,
+            charged_against_assets=True
         )
     ]
 
@@ -221,7 +225,6 @@ def current_user_investments_fn(client: client_finance):
     investments.extend(client.other_investments)
 
     if client.third_pillar: investments.append(client.third_pillar)
-    if client.debt: investments.append(client.debt)
     return investments
 
 @dataclass
@@ -250,13 +253,15 @@ def duration_till_amount() -> dict[list[investment_point], int]:
 
 def duration_till_amount_fn(
     client: client_finance,
-    investments: list[investment],
     target_amount: int,
 ) -> dict: 
     #solve for years
+    client = deepcopy(client) #eww
     is_affordable_since = 1000000
     years_to_additionally_forecast = 3
     max_years = 100
+
+    investments = current_user_investments_fn(client)
 
     targets = house_price_fn(target_amount, max_years)
     series = [[]]
@@ -266,6 +271,7 @@ def duration_till_amount_fn(
     for year in range(1, max_years):
         #add savings, assuming person keeps same salary
         savings = client.salary_yearly * client.saving_rate + client.salary_bonus_yearly * client.saving_rate
+        #TODO respect charged against assets
         this_years_investements = sum((x.additional_monthly_input for x in investments))
         assert(savings > this_years_investements)
         client.savings = savings - this_years_investements
@@ -280,7 +286,7 @@ def duration_till_amount_fn(
         for i, investment in enumerate(investments):
             # Update the investment value
             investment.value += (investment.additional_monthly_input * 12)
-            investment.value *= (1 + investment.kind.ror)
+            investment.value *= (1 + investment.kind.rate_of_return)
 
             # Calculate bounds based on the updated value and volatility
             series_n_low = investment.value / (1 + investment.kind.volatility)
@@ -290,6 +296,7 @@ def duration_till_amount_fn(
             series_n.append(investment_point(date, series_n_low, series_n_up))
 
             # Update the total lower and upper bounds for this year
+            #TODO respect charged against assets
             this_year_total_lower += series_n_low
             this_year_total_upper += series_n_up
         series.append(series_n)
@@ -426,31 +433,16 @@ def should_continue(state: MessagesState) -> Literal["environment", END]:
 
 
 if __name__ == "__main__":
-    c = client_finance(
-        third_pillar=None,
-        second_pillar=example_investment,
-        other_investments=[example_investment],
-        saving_rate=0.2,
-        debt=example_debt,
-        salary_yearly=200000,
-        salary_bonus_yearly=20000,
-        savings=100000,
-        years_till_retirement=30,
-        fixed_expenses=2000,
-        risk_tolerance=0.5
-    )
-    target_amount = 1_000_000
     s, y = duration_till_amount_fn(
-        c,
-        current_user_investments_fn(c),
-        target_amount,
+        global_client_finance,
+        global_target_amount,
     )
     print("Years to reach target amount:", y)
     # Plot the lower and upper bounds
     lower_bounds = [point.lower_bound for point in s]
     upper_bounds = [point.upper_bound for point in s]
     years = [point.date.year for point in s]  # Extract the year from the date attribute
-    house_price = house_price_fn(target_amount, len(years))
+    house_price = house_price_fn(global_target_amount, len(years))
 
     # Ensure the lengths of years and house_price match
     house_price = house_price[:len(years)]
@@ -476,14 +468,21 @@ if __name__ == "__main__":
     # Show the plot
     plt.savefig("example_plot.png")
 
-    pprint(serialize(c))
+    pprint(serialize(global_client_finance))
 
 
 
     p = f"""
-    You are an experienced investment advisor in Switzerland. Help a client reach their housing goal. Keep it positive and hopeful. The targeted houses currently cost around {target_amount}. The customer should have at least 3 months of salary in their savings account in cash. Do keep in mind the regulations. Help the customer structure their portfolio to afford a home, try out a few approaches, be creative.
-    Here's some information on your client in json: {serialize(c)}.
+    You are an experienced investment advisor in Switzerland. Help a client reach their housing goal. Keep it positive and hopeful. The targeted houses currently cost around {global_target_amount}. The customer should have at least 3 months of salary in their savings account in cash. Do keep in mind the regulations. Help the customer structure their portfolio to afford a home, try out a few approaches, be creative.
+    Here's some information on your client in json: {serialize(global_client_finance)}.
     Think about and ask to clarify if a SARON or fixed rate mortgage is better for the client.
+    You should use tools to get information on regulation, the available investments, and to try out different investment strategies.
+    You can also add or remove investments from the portfolio for trial-and-error exploration of the portfolios.
+    They can be tested with the duration_till_amount tool.
+    You can also use the house_price_prediction tool to get an idea of how the house price will change in the next years.
+    Use the current_user_investments tool to get the current investments of the client.
+    You can also ask the user for more information if needed.
+    Please perform really good research and analysis. It's important to be thorough and precise.
     """
 
     #agent = initialize_agent(tools=[regulations, financial_instruments, house_price_prediction, current_user_investments, duration_till_amount, remove_investment, add_investment], llm=llm, agent_type=AgentType.CHAT_CONVERSATIONAL_REACT_DESCRIPTION, verbose=True)
